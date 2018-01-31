@@ -1,0 +1,101 @@
+(ns examples-fct.core
+  (:require
+   [fct.core :as f]))
+
+
+
+;; variables declaration and f/ev and f/lift
+
+(def x (f/vari :x))
+(def y (f/vari :y))
+
+(def f+ (f/lift +))
+
+(f+ x y)
+;; creates an fct object that can be evaluated with f/ev
+
+(f/ev (f+ x y) {:x 3 :y -3})
+
+;; f/lift
+
+(def my-first (fn [[a b]] a))
+
+(f/ev ((f/lift my-first) x) {:x [1 2 3 4 5]})
+
+;; we can use all normal clojure objects, but the result will be an fct object
+
+((f/lift my-first) [1 2 3 4 5])
+
+;; is not 1, but becomes 1 after evaluation
+
+(f/ev ((f/lift my-first) [1 2 3 4 5]) {})
+
+;; fn 
+
+(def h (f/fn [a] (x a (f+ y -1))))
+
+((f/ev h {:x + :y 1}) 4)
+
+;; composition 
+
+((f/ev (f/fn [a] (h (h a))) {:x + :y 1}) 0)
+
+;; is the same as
+(f/ev (h (h 0)) {:x + :y 1})
+
+;; only fct objects should call
+
+(:a x)
+
+;; gives nil, but that's not what we want, use 
+
+((f/lift get) x :a)
+
+;; with f/lift 
+
+(f/ev ((f/lift get) x :a) {:x {:a "something" :b "another"}})
+
+;; another example
+
+(+ x y)
+
+;; throws an error, because + is the usual clojure.core/+ and not the lift
+
+(x [y 3])
+
+(f/ev (x [y 3]) {:x first :y "this"})
+;; does not evaluate to "this", because [y 3] is not an fct object, use
+
+(x ((f/lift vector) y 3))
+
+(f/ev (x ((f/lift vector) y 3)) {:x first :y "this"})
+
+;; every fct object can call 
+
+((f+ 1 1) 1)
+
+;; is correct syntax, but evaluation will throw an error
+
+(f/ev ((f+ 1 1) 1) {})
+
+;; f/let works as usual
+
+(f/let [{:keys [a]} x] a)
+
+(f/ev (f/let [{:keys [a]} x] a) {:x {:a "something" :b "another"}})
+
+;; `if` is a special form, use f/cond or f/if-else
+
+(f/cond x y "Dont know")
+
+(f/ev (f/cond x y "Dont know!") {:x true :y "?"})
+
+;; clojure.core/loop uses the special form recur, f/loop syntax is (f/loop a test iter) where test and iter are functions in a, we can also use (f/loop a test iter ret) to modify the value to be returned by ret 
+
+(def l (f/loop ((f/lift list) x '())
+         (f/fn [[a b]] ((f/lift empty?) a))
+         (f/fn [[a b]] ((f/lift list) ((f/lift rest) a) ((f/lift conj) b ((f/lift first) a))))
+         (f/fn [[a b]] b)))
+
+(f/ev l {:x '(1 2 3)})
+
